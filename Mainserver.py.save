@@ -1,0 +1,141 @@
+import socket
+import threading
+import time
+import os
+
+# Setup the server
+server_ip = "0.0.0.0"  # listen on all interfaces
+server_port = 5000
+
+# This keeps track of what number we're on
+num = 1
+
+# Make sure we have a log file
+if not os.path.exists("messages.txt"):
+    f = open("messages.txt", "w")
+    f.write("=== Message Log ===\n")
+    f.close()
+
+# This converts numbers to words
+def num2word(n):
+    # I'm just doing 1-15 for this project
+    if n == 1: return "one"
+    elif n == 2: return "two"
+    elif n == 3: return "three"
+    elif n == 4: return "four"
+    elif n == 5: return "five"
+    elif n == 6: return "six"
+    elif n == 7: return "seven"
+    elif n == 8: return "eight"
+    elif n == 9: return "nine"
+    elif n == 10: return "ten"
+    elif n == 11: return "eleven"
+    elif n == 12: return "twelve"
+    elif n == 13: return "thirteen"
+    elif n == 14: return "fourteen"
+    elif n == 15: return "fifteen"
+    else: return "number_" + str(n)  # for any other numbers
+
+# Handle each client in a separate thread
+def client_thread(conn, addr):
+    global num
+    
+    # First, find out which client this is
+    try:
+        conn.send(b"HELLO")
+        client_id = int(conn.recv(1024).decode().strip())
+        print("Client", client_id, "connected from", addr)
+    except:
+        print("Failed to get client ID from", addr)
+        try:
+            conn.close()
+        except:
+            pass
+        return
+    
+    # Main client loop
+    while True:
+        try:
+            # Check whose turn it is
+            my_turn = False
+            if client_id == 1 and num % 2 == 1:  # Client 1 and odd number
+                my_turn = True
+            if client_id == 2 and num % 2 == 0:  # Client 2 and even number
+                my_turn = True
+                
+            if my_turn:
+                # It's this client's turn
+                word = num2word(num)
+                msg = "SEND:" + word
+                conn.send(msg.encode())
+                
+                # Get the client's response
+                response = conn.recv(1024).decode().strip()
+                print("Got:", response)
+                
+                if response == word:
+                    # They sent the right word
+                    print("Client", client_id, "sent", response)
+                    
+                    # Save to our log file
+                    f = open("messages.txt", "a")
+                    f.write("Client " + str(client_id) + ": " + response + "\n")
+                    f.close()
+                    
+                    # Update our counter
+                    num += 1
+                    
+                    # Tell client it was good
+                    conn.send(b"GOOD")
+                else:
+                    # Wrong response
+                    print("Client", client_id, "sent wrong word:", response)
+                    conn.send(b"BAD")
+            else:
+                # Not this client's turn
+                conn.send(b"WAIT")
+                time.sleep(1)  # don't spam them
+        
+        except ConnectionResetError:
+            print(f"Client {client_id} disconnected abruptly")
+            break
+        except BrokenPipeError:
+            print(f"Connection to client {client_id} was broken")
+            break
+        except Exception as e:
+            print(f"Error with client {client_id}: {e}")
+            break
+    
+    # Clean up
+    try:
+        conn.close()
+    except:
+        pass
+    print("Client", client_id, "thread ended")
+
+# Main server code
+print("Starting server...")
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # allows reuse of address
+s.bind((server_ip, server_port))
+s.listen(5)
+print("Server ready on port", server_port)
+
+# Accept connections forever
+while True:
+    try:
+        client, address = s.accept()
+        print("New connection from", address)
+        
+        # Create a new thread for this client
+        t = threading.Thread(target=client_thread, args=(client, address))
+        t.daemon = True  # so thread dies when main thread dies
+        t.start()
+        
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        break
+    except Exception as e:
+        print("Error:", e)
+
+s.close()

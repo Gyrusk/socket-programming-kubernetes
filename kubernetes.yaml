@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: server
+  template:
+    metadata:
+      labels:
+        app: server
+    spec:
+      containers:
+      - name: server
+        image: server-img
+        imagePullPolicy: IfNotPresent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  selector:
+    app: server
+  ports:
+  - port: 5000
+    targetPort: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client1
+  template:
+    metadata:
+      labels:
+        app: client1
+    spec:
+      containers:
+      - name: client1
+        image: client-img
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CLIENT_ID
+          value: "1"
+        - name: SERVER_HOST
+          value: "server"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client2
+  template:
+    metadata:
+      labels:
+        app: client2
+    spec:
+      containers:
+      - name: client2
+        image: client-img
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CLIENT_ID
+          value: "2"
+        - name: SERVER_HOST
+          value: "server"
